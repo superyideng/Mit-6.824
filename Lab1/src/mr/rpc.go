@@ -19,7 +19,7 @@ type WorkerRequestTask struct {
 }
 
 type MasterReplyTask struct {
-	TaskType string // 0 for Map Task and 1 for Reduce Task
+	TaskType string // "Map" for Map Task, "Reduce" for Reduce Task, "Wait" for wait
 
 	FileName string
 	TotalReduce int

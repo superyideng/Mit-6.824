@@ -6,8 +6,9 @@ import "os"
 import "net/rpc"
 import "net/http"
 
-import "fmt"
+import "sync"
 
+//import "fmt"
 type Master struct {
 	// Your definitions here.
 	Phase string
@@ -29,7 +30,14 @@ type TaskInfo struct {
 }
 
 func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask) error {
-	if m.Phase == "Map" {
+	var mu sync.Mutex
+	mu.Lock()
+	defer mu.Unlock()
+
+	if m.Phase == "Map" && m.CurIndex == len(m.MapTasks) {
+		// when phase is still "Map" but have reached to the end of task queue
+		reply.TaskType = "Wait"
+	} else if m.Phase == "Map" {
 		// allocate map task
 		reply.TaskType = "Map"
 		reply.CurMapNum = m.MapTaskInfo[m.MapTasks[m.CurIndex]].Id
@@ -59,6 +67,10 @@ func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask)
 }
 
 func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmission) error {
+	var mu sync.Mutex
+	mu.Lock()
+	defer mu.Unlock()
+
 	if m.Phase == "Map" {
 		// update the Task status
 		fileName := args.FileName
@@ -80,10 +92,9 @@ func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmissi
 
 		if m.hasReducePhaseFinished() {
 			m.Phase = "Finished"
-			m.CurIndex = 0
+			return nil
 		}
 	}
-
 	return nil
 }
 
@@ -151,7 +162,7 @@ func MakeMaster(files []string, nReduce int) *Master {
 
 
 	m.ReduceTasks = make([]int, 0)
-	m.ReduceTaskInfo = make([]string, 0)
+	m.ReduceTaskInfo = make([]string, nReduce)
 
 	for i, file := range files {
 		m.MapTasks = append(m.MapTasks, file)
@@ -163,7 +174,7 @@ func MakeMaster(files []string, nReduce int) *Master {
 
 		for i := 0; i < nReduce; i++ {
 			m.ReduceTasks = append(m.ReduceTasks, i)
-			m.ReduceTaskInfo = append(m.ReduceTaskInfo, "queuing")
+			m.ReduceTaskInfo[i] = "queuing"
 		}
 	}
 

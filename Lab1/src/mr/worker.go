@@ -46,19 +46,23 @@ func Worker(mapf func(string, string) []KeyValue,
 
 		// do map task when reply.TaskType == 0
 		if reply.TaskType == "Map" {
+			fmt.Println(reply.CurMapNum)
 			kva := MapAFile(reply.FileName, mapf)
 
 			mapIntermediate := GenerateIntermediateKVMap(reply.TotalReduce, kva)
-			
+
 			CreateIntermediateFile(reply.CurMapNum, reply.TotalReduce, mapIntermediate)
 
 			// submit the task via rpc
 			//submitReply, submitSucceeded := SubmitTask(reply.FileName)
 
-		} else { // do reduce task when reply.TaskType == 1
+		} else if reply.TaskType == "Reduce" { // do reduce task when reply.TaskType == 1
 			kva := ReadIntermediateFile(reply.TotalMap, reply.CurReduceId)
 
 			DoReduceAndGenerateOutputFile(kva, reply.CurReduceId, reducef)
+			
+		} else if reply.TaskType == "Wait" {
+			continue
 		}
 
 		// submit the task via rpc
