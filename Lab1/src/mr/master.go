@@ -16,11 +16,12 @@ type Master struct {
 	TotalMap int
 
 	MapTasks []string
-	MapTaskInfo map[string]TaskInfo //Key: File, Value: TaskInfo
+	MapTaskInfo map[string]TaskInfo // Key: File, Value: TaskInfo
 
 	ReduceTasks []int
 	ReduceTaskInfo []string
 
+	//NeedsWait bool // true means a worker needs to wait when request
 	CurIndex int
 }
 
@@ -34,7 +35,7 @@ func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask)
 	mu.Lock()
 	defer mu.Unlock()
 
-	if m.Phase == "Map" && m.CurIndex == len(m.MapTasks) {
+	if (m.Phase == "Map" && m.CurIndex == len(m.MapTasks)) || m.Phase == "Reduce" && m.CurIndex == len(m.ReduceTasks) {
 		// when phase is still "Map" but have reached to the end of task queue
 		reply.TaskType = "Wait"
 	} else if m.Phase == "Map" {
@@ -180,6 +181,8 @@ func MakeMaster(files []string, nReduce int) *Master {
 
 
 	m.Phase = "Map"
+
+	//m.NeedsWait = false
 	m.CurIndex = 0
 
 	m.server()

@@ -60,8 +60,9 @@ func Worker(mapf func(string, string) []KeyValue,
 			kva := ReadIntermediateFile(reply.TotalMap, reply.CurReduceId)
 
 			DoReduceAndGenerateOutputFile(kva, reply.CurReduceId, reducef)
-			
+
 		} else if reply.TaskType == "Wait" {
+			time.Sleep(time.Second)
 			continue
 		}
 
