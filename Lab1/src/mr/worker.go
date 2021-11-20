@@ -46,7 +46,6 @@ func Worker(mapf func(string, string) []KeyValue,
 
 		// do map task when reply.TaskType == 0
 		if reply.TaskType == "Map" {
-			fmt.Println(reply.CurMapNum)
 			kva := MapAFile(reply.FileName, mapf)
 
 			mapIntermediate := GenerateIntermediateKVMap(reply.TotalReduce, kva)
@@ -68,7 +67,7 @@ func Worker(mapf func(string, string) []KeyValue,
 
 		// submit the task via rpc
 		//submitReply, submitSucceeded := SubmitTask(reply.FileName, reply.CurReduceId)
-		SubmitTask(reply.FileName, reply.CurReduceId)
+		SubmitTask(reply.TaskType, reply.FileName, reply.CurReduceId)
 
 		//////////////////////////////////////////////////////// discuss the submit status
 
@@ -92,9 +91,10 @@ func RequestMaster() (MasterReplyTask, bool) {
 }
 
 // Submit the task to master via RPC.
-func SubmitTask(fileName string, curReduceId int) (MasterAckSubmission, bool) {
+func SubmitTask(taskType string, fileName string, curReduceId int) (MasterAckSubmission, bool) {
 	// declare an argument structure.
 	args := WorkerSubmitTask{}
+	args.TaskType = taskType
 	args.FileName = fileName
 	args.ReduceId = curReduceId
 

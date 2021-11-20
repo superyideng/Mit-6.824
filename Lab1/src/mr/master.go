@@ -5,6 +5,7 @@ import "net"
 import "os"
 import "net/rpc"
 import "net/http"
+import "time"
 
 import "sync"
 
@@ -52,6 +53,10 @@ func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask)
 
 		// move CurIndex
 		m.CurIndex += 1
+
+		// new thread to catch out time-out task
+		go m.moniterMapTimeOut(reply.FileName)
+
 	} else {
 		// after map finished, allocate reduce task
 		reply.TaskType = "Reduce"
@@ -62,6 +67,9 @@ func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask)
 		m.ReduceTaskInfo[m.ReduceTasks[m.CurIndex]] = "in progress"
 
 		m.CurIndex += 1
+
+		// new thread to catch out time-out task
+		go m.moniterReduceTimeOut(reply.CurReduceId)
 	}
 
 	return nil
@@ -71,6 +79,11 @@ func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmissi
 	var mu sync.Mutex
 	mu.Lock()
 	defer mu.Unlock()
+
+	// if master receives a Map task at Reduce phase, ignore it
+	if m.Phase != args.TaskType {
+		return nil
+	}
 
 	if m.Phase == "Map" {
 		// update the Task status
@@ -97,6 +110,41 @@ func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmissi
 		}
 	}
 	return nil
+}
+
+
+func (m *Master) moniterMapTimeOut(filename string) {
+	var mu sync.Mutex
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Second)
+
+		if m.MapTaskInfo[filename].Status == "finished" {
+			return
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	m.MapTasks = append(m.MapTasks, filename)
+
+	tempInfo := TaskInfo{}
+	tempInfo.Id = m.MapTaskInfo[filename].Id
+	tempInfo.Status = "queuing"
+
+	m.MapTaskInfo[filename] = tempInfo
+}
+
+func (m *Master) moniterReduceTimeOut(id int) {
+	var mu sync.Mutex
+	for i := 0; i < 10; i++ {
+		time.Sleep(time.Second)
+		if m.ReduceTaskInfo[id] == "finished" {
+			return
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	m.ReduceTasks = append(m.ReduceTasks, id)
+	m.ReduceTaskInfo[id] = "queuing"
 }
 
 func (m *Master) hasMapPhaseFinished() bool {

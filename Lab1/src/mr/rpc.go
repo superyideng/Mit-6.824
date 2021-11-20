@@ -30,6 +30,7 @@ type MasterReplyTask struct {
 }
 
 type WorkerSubmitTask struct {
+	TaskType string
 	FileName string
 	ReduceId int
 }
