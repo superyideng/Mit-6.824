@@ -31,8 +31,9 @@ type TaskInfo struct {
 	Status string // Three status for each map task: "queuing", "in progress" and "finished"
 }
 
+var mu sync.Mutex
+
 func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask) error {
-	var mu sync.Mutex
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -76,7 +77,6 @@ func (m *Master) TaskAllocation(args *WorkerRequestTask, reply *MasterReplyTask)
 }
 
 func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmission) error {
-	var mu sync.Mutex
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -88,6 +88,11 @@ func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmissi
 	if m.Phase == "Map" {
 		// update the Task status
 		fileName := args.FileName
+
+		// if this file is already "finished", then do nothing
+		if m.MapTaskInfo[fileName].Status == "finished" {
+			return nil
+		}
 
 		tempInfo := TaskInfo{}
 		tempInfo.Id = m.MapTaskInfo[fileName].Id
@@ -101,6 +106,12 @@ func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmissi
 		}
 	} else {
 		reduceId := args.ReduceId
+
+		// if this task is already "finished", then do nothing
+		if m.ReduceTaskInfo[reduceId] == "finished" {
+			return nil
+		}
+
 		// update the Task status
 		m.ReduceTaskInfo[reduceId] = "finished"
 
@@ -114,16 +125,16 @@ func (m *Master) TaskSubmission(args *WorkerSubmitTask, reply *MasterAckSubmissi
 
 
 func (m *Master) moniterMapTimeOut(filename string) {
-	var mu sync.Mutex
+	//mu.Lock()
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
-
 		if m.MapTaskInfo[filename].Status == "finished" {
+			//mu.Unlock()
 			return
 		}
 	}
 	mu.Lock()
-	defer mu.Unlock()
+
 	m.MapTasks = append(m.MapTasks, filename)
 
 	tempInfo := TaskInfo{}
@@ -131,20 +142,23 @@ func (m *Master) moniterMapTimeOut(filename string) {
 	tempInfo.Status = "queuing"
 
 	m.MapTaskInfo[filename] = tempInfo
+	mu.Unlock()
 }
 
+/// read map and lock
 func (m *Master) moniterReduceTimeOut(id int) {
-	var mu sync.Mutex
+	//mu.Lock()
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
 		if m.ReduceTaskInfo[id] == "finished" {
+			//mu.Unlock()
 			return
 		}
 	}
 	mu.Lock()
-	defer mu.Unlock()
 	m.ReduceTasks = append(m.ReduceTasks, id)
 	m.ReduceTaskInfo[id] = "queuing"
+	mu.Unlock()
 }
 
 func (m *Master) hasMapPhaseFinished() bool {
@@ -186,10 +200,9 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	ret := false
-
-	// Your code here.
-	ret = m.Phase == "Finished"
+	mu.Lock()
+	defer mu.Unlock()
+	ret := m.Phase == "Finished"
 
 	return ret
 }

@@ -133,7 +133,6 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 
 // do map task on input file
 func MapAFile(filename string, mapf func(string, string) []KeyValue) []KeyValue {
-
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("cannot open %v", filename)
@@ -173,19 +172,36 @@ func GenerateIntermediateKVMap(totalReduce int, kva []KeyValue) map[int][]KeyVal
 // create intermediate files, which is output of a map task
 func CreateIntermediateFile(curMapNum int, totalReduce int, mapIntermediate map[int][]KeyValue) {
 	for i := 0; i < totalReduce; i++ {
-		intermediateFileName := fmt.Sprintf("mr-%d-%d", curMapNum, i)
-		file, err := os.Create(intermediateFileName)
+		tempFileName := fmt.Sprintf("temp-%d-%d", curMapNum, i)
+		tempFile, err := ioutil.TempFile("./", tempFileName)
 		if err != nil {
-			log.Fatalf("cannot open %v", intermediateFileName)
+			log.Fatalf("cannot create temp intermediate file %v", tempFileName)
 		}
-		enc := json.NewEncoder(file)
+		enc := json.NewEncoder(tempFile)
 		for _, kv := range mapIntermediate[i] {
 			errEnc := enc.Encode(&kv)
 			if errEnc != nil {
 				log.Fatalf("cannot encode")
 			}		
 		}
-		file.Close()	
+		//tempFile.Close()
+		intermediateFileName := fmt.Sprintf("mr-%d-%d", curMapNum, i)
+		os.Rename(tempFile.Name(), intermediateFileName)
+		tempFile.Close()
+
+		// intermediateFileName := fmt.Sprintf("mr-%d-%d", curMapNum, i)
+		// file, err := os.Create(intermediateFileName)
+		// if err != nil {
+		// 	log.Fatalf("cannot open %v", intermediateFileName)
+		// }
+		// enc := json.NewEncoder(file)
+		// for _, kv := range mapIntermediate[i] {
+		// 	errEnc := enc.Encode(&kv)
+		// 	if errEnc != nil {
+		// 		log.Fatalf("cannot encode")
+		// 	}		
+		// }
+		// file.Close()
 	}
 }
 
